@@ -1,1 +1,1 @@
-# Handwritten-Characters-Classifer
+# Handwritten-Character-Classifier

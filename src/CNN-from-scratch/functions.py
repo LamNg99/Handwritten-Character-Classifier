@@ -13,7 +13,12 @@ def relu_backward(Z):
 
 def softmax(Z):
     expZ = np.exp(Z - np.max(Z))
-    return expZ / expZ.sum(axis=0, keepdims=True)
+    return expZ / np.sum(expZ)
+
+
+def softmax_backward(r):
+    soft = softmax(r)
+    return soft * (1 - soft)
 
 
 def cross_entropy(p):

@@ -1,3 +1,5 @@
+from ast import Str
+from json import detect_encoding
 import numpy as np
 from functions import *
 
@@ -10,7 +12,7 @@ class Conv2D:
         self.activation = activation
         self.stride = stride
         self.padding = padding
-        sefl.p = 1 if padding == 'same' else 0
+        self.p = 1 if padding == 'same' else 0
         self.bias = bias
 
         if input_shape != None:
@@ -36,4 +38,75 @@ class Conv2D:
         self.delta_biases = np.zeros(self.biases.shape)
 
     def forward_propagation(self, image):
-        pass
+        self.input = image                      # keep track of last input for backpropagation
+        kshape = self.kernel_size
+
+        # Check kernel size and stride values
+        if kshape[0] % 2 != 1 or kshape[1] % 2 != 1:
+            raise ValueError('Please provide odd length of 2D kernel.')
+        if type(self.stride) == int:
+            stride = (stride, stride)
+        else:
+            stride = self.stride
+
+        # Zero padding
+        if self.padding == None:
+            pass
+        elif self.padding == 'valid':
+            pass
+        elif self.padding == 'same':
+            h = np.zeros((image.shape[1], image.shape[2])
+                         ).reshape(-1, image.shape[1], image.shape[2])
+            v = np.zeros((image.shape[0] + 2, image.shape[2])
+                         ).reshape(image.shape[0] + 2, -1, image.shape[2])
+            padded_image = np.vstack(h, image, h)           # add rows
+            padded_image = np.vstack(v, padded_image, v)    # add columns
+            image = padded_image
+
+        # Convolve each filter over padded image
+        feature_maps = []
+        for f in range(self.filters):
+            rv = 0
+            for r in range(kshape[0], image.shape[0] + 1, stride[0]):
+                cv = 0
+                for c in range(kshape[1], image.shape[1] + 1, stride[1]):
+                    convolved_region = [rv:r, cv:c]
+                    detection = (np.multiply(
+                        detection, self.weights[:, :, :, f]))
+                    result = detection.sum() + self.biases[f]
+                    feature_maps.append(result)
+                    cv += stride[1]
+                rv += stride[0]
+            feature_maps = np.array(feature_maps).reshape(
+                int(rv/stride[0]), int(cv/stride[1]))
+            self.out[:, :, f] = feature_maps
+        self.out = relu(self.out)
+        return self.out
+
+    def backward_propagation(self, next_layer):
+        current_layer = self
+        current_layer.delta = np.zeros(
+            (current_layer.input_shape[0], current_layer.input_shape[1], current_layer.input_shape[2]))
+        image = current_layer.input
+        kshape = current_layer.kernel_size
+        shape = current_layer.input_shape
+        stride = current_layer.stride
+
+        for f in range(current_layer.filters):
+            rv = 0
+            i = 0
+            for r in range(kshape[0], shape[0]+1, stride[0]):
+                cv = 0
+                j = 0
+                for c in range(kshape[1], shape[1]+1, stride[1]):
+                    convolved_region = image[rv:r, cv:c]
+                    current_layer.delta_weights[:, :, :,
+                                                f] += convolved_region * next_layer.delta[i, j, f]
+                    current_layer.delta[rv:r, cv:c, :] += next_layer.delta[i,
+                                                                           j, f] * current_layer.weights[:, :, :, f]
+                    j += 1
+                    cv += stride[1]
+                rv += stride[0]
+                i += 1
+            current_layer.delta_biases[f] = np.sum(next_layer.delta[:, :, f])
+        current_layer.delta = relu_backward(current_layer.delta)

@@ -110,3 +110,27 @@ class Conv2D:
                 i += 1
             current_layer.delta_biases[f] = np.sum(next_layer.delta[:, :, f])
         current_layer.delta = relu_backward(current_layer.delta)
+
+class MaxPooling2D:
+    def __init__(self, kernel_size=(2, 2), stride=None, padding=None):
+        self.input_shape = None
+        self.output_shape = None
+        self.input_data = None
+        self.output = None
+        self.isbias = False
+        self.activation = None
+        self.parameters = 0
+        self.delta = 0
+        self.weights = 0
+        self.bias = 0
+        self.delta_weights = 0
+        self.delta_biases = 0
+        self.padding = padding
+        self.p = 1 if padding == 'same' else 0
+        self.kernel_size = kernel_size
+        if type(stride) == int:
+            stride = (stride, stride)
+        self.stride = stride
+        if self.stride == None:
+            self.stride = self.kernel_size
+        

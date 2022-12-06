@@ -70,7 +70,7 @@ class Conv2D:
             for r in range(kshape[0], image.shape[0] + 1, stride[0]):
                 cv = 0
                 for c in range(kshape[1], image.shape[1] + 1, stride[1]):
-                    convolved_region = [rv:r, cv:c]
+                    convolved_region = image[rv:r, cv:c]
                     detection = (np.multiply(
                         detection, self.weights[:, :, :, f]))
                     result = detection.sum() + self.biases[f]
@@ -111,11 +111,11 @@ class Conv2D:
             current_layer.delta_biases[f] = np.sum(next_layer.delta[:, :, f])
         current_layer.delta = relu_backward(current_layer.delta)
 
+
 class MaxPooling2D:
     def __init__(self, kernel_size=(2, 2), stride=None, padding=None):
         self.input_shape = None
         self.output_shape = None
-        self.input_data = None
         self.output = None
         self.isbias = False
         self.activation = None
@@ -133,4 +133,57 @@ class MaxPooling2D:
         self.stride = stride
         if self.stride == None:
             self.stride = self.kernel_size
-        
+        self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.stride[0] + 1),
+                             int((
+                                 self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.stride[1] + 1),
+                             self.input_shape[2])
+        self.out = np.zeros(self.output_shape)
+
+    def forward_propagation(self, image):
+        self.input = image
+        kshape = self.kernel_size
+        if type(self.stride) == int:
+            stride = (stride, stride)
+        else:
+            stride = self.stride
+
+        for f in range(image.shape[2]):
+            pooled_feature_maps = []
+            rv = 0
+            for r in range(kshape[0], image.shape[0]+1, stride[0]):
+                cv = 0
+                for c in range(kshape[1], image.shape[1]+1, stride[1]):
+                    pooled_region = image[rv:r, cv:c, f]
+                    pooled_region = np.max(pooled_region)
+                    cv += stride[1]
+                rv += stride[0]
+            pooled_feature_maps = np.array(pooled_feature_maps).reshape(
+                int(rv/stride[0]), int(cv/stride[1]))
+            self.out[:, :, f] = pooled_feature_maps
+        return self.out
+
+    def backward_propagation(self, next_layer):
+        current_layer = self
+        current_layer.delta = np.zeros(
+            (current_layer.input_shape[0], current_layer.input_shape[1], current_layer.input_shape[2]))
+        image = current_layer.input
+        kshape = current_layer.kernel_size
+        shape = current_layer.input_shape
+        stride = current_layer.stride
+
+        for f in range(shape[2]):
+            i = 0
+            rv = 0
+            for r in range(kshape[0], shape[0]+1, stride[0]):
+                cv = 0
+                j = 0
+                for c in range(kshape[1], shape[1]+1, stride[1]):
+                    pooled_region = image[rv:r, cv:c, f]
+                    dout = next_layer.delta[i, j, f]
+                    p = np.max(pooled_region)
+                    index = np.argwhere(pooled_region == p)[0]
+                    current_layer.delta[rv+index[0], cv+index[1], f] = dout
+                    j += 1
+                    cv += stride[1]
+                rv += stride[0]
+                i += 1

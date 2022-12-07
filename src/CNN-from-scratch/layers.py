@@ -187,3 +187,29 @@ class MaxPooling2D:
                     cv += stride[1]
                 rv += stride[0]
                 i += 1
+
+
+class Flatten:
+    def __init__(self, input_shape=None):
+        self.input_shape = None
+        self.out = None
+        self.isbias = False
+        self.parameters = 0
+        self.delta = 0
+        self.weights = 0
+        self.bias = 0
+        self.delta_weights = 0
+        self.delta_biases = 0
+
+        self.output_shape = (
+            self.input_shape[0] * self.input_shape[1] * self.input_shape[2])
+
+    def forward_propagation(self, image):
+        self.input = image
+        self.out = np.array(image).flatten()
+        return self.out
+
+    def back_propagation(self, next_layer):
+        self.error = np.dot(next_layer.weights, next_layer.delta)
+        self.delta = self.error * self.out
+        self.delta = self.delta.reshape(self.input_shape)

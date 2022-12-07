@@ -116,7 +116,6 @@ class MaxPooling2D:
     def __init__(self, kernel_size=(2, 2), stride=None, padding=None):
         self.input_shape = None
         self.output_shape = None
-        self.output = None
         self.isbias = False
         self.activation = None
         self.parameters = 0
@@ -192,7 +191,6 @@ class MaxPooling2D:
 class Flatten:
     def __init__(self, input_shape=None):
         self.input_shape = None
-        self.out = None
         self.isbias = False
         self.parameters = 0
         self.delta = 0
@@ -213,3 +211,35 @@ class Flatten:
         self.error = np.dot(next_layer.weights, next_layer.delta)
         self.delta = self.error * self.out
         self.delta = self.delta.reshape(self.input_shape)
+
+
+class Dropout:
+    def __init__(self, prob=0.5):
+        self.input_shape = None
+        self.isbias = False
+        self.parameters = 0
+        self.delta = 0
+        self.weights = 0
+        self.bias = 0
+        self.prob = prob
+        self.delta_weights = 0
+        self.delta_biases = 0
+        self.output_shape = self.input_shape
+
+    def forward_propagation(self, input, train=True):
+        if train:
+            self.input = input
+            flat = np.array(self.input_data).flatten()
+            random_indices = np.random.choice(
+                len(flat), int(self.prob*len(flat)), replace=False)
+            flat[random_indices] = 0
+            self.output = flat.reshape(input.shape)
+            return self.output
+        else:
+            self.input_data = input
+            self.output = input / self.prob
+            return self.output
+
+    def backward_propagation(self, next_layer):
+        self.delta = next_layer.delta
+        self.delta[self.output == 0] = 0

@@ -80,7 +80,13 @@ class Conv2D:
             feature_maps = np.array(feature_maps).reshape(
                 int(rv/stride[0]), int(cv/stride[1]))
             self.out[:, :, f] = feature_maps
-        self.out = relu(self.out)
+        if self.activation == None:
+            pass
+        elif self.activation == 'relu':
+            self.out = relu(self.out)
+        else:
+            raise ValueError(
+                f'Activation function is not recognised or available.')
         return self.out
 
     def backward_propagation(self, next_layer):
@@ -229,7 +235,7 @@ class Dropout:
     def forward_propagation(self, input, train=True):
         if train:
             self.input = input
-            flat = np.array(self.input_data).flatten()
+            flat = np.array(self.input).flatten()
             random_indices = np.random.choice(
                 len(flat), int(self.prob*len(flat)), replace=False)
             flat[random_indices] = 0
@@ -243,3 +249,60 @@ class Dropout:
     def backward_propagation(self, next_layer):
         self.delta = next_layer.delta
         self.delta[self.output == 0] = 0
+
+
+class Dense:
+    def __init__(self, units=1, input_shape=None, bias=None, weights=None, activation=None, isbias=True):
+        np.ramdom.seed(42)
+        self.input_shape = input_shape
+        self.units = units
+        self.activation = activation
+        self.isbias = isbias
+        self.weights = weights
+        self.bias = bias
+        self.error = None
+        self.output_shape = units
+
+        if self.input_shape != None:
+            self.weights = weights if weights != None else np.random.randn(
+                self.input_shape, units)
+            self.parameters = self.input_shape * \
+                self.units + self.units if self.isbias else 0
+        if isbias:
+            self.biases = bias if bias != None else np.random.randn(units)
+        else:
+            self.biases = 0
+
+        self.error = None
+        self.delta = None
+        self.delta_weights = 0
+        self.delta_biases = 0
+
+    def forward_propagation(self, input):
+        self.input = input
+        output = np.dot(input, self.weights) + self.biases
+
+        if self.activation == None:
+            pass
+        elif self.activation == 'relu':
+            self.out = relu(output)
+        elif self.activation == 'softmax':
+            self.out = softmax(output)
+        else:
+            raise ValueError(
+                f'Activation function is not recognised or available.')
+        return self.out
+
+    def backward_propagation(self, next_layer):
+        self.error = np.dot(next_layer.weights, next_layer.delta)
+        if self.activation == None:
+            pass
+        elif self.activation == 'relu':
+            self.delta = self.error * relu_backward(self.out)
+        elif self.activation == 'softmax':
+            self.delta = self.error * softmax_backward(self.out)
+        else:
+            raise ValueError(
+                f'Activation function is not recognised or available.')
+        self.delta_weights += self.delta * np.atleast_2d(self.input).T
+        self.delta_biases += self.delta

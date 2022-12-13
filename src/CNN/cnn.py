@@ -10,14 +10,14 @@ class CNN:
         self.layers = []
         self.info_df = {}
         self.parameters = []
-        self.optimizer = ""
-        self.loss = "mse"
+        self.optimizer = ''
+        self.loss = ''
         self.lr = 0.01
         self.mr = 0.0001
         self.metrics = []
-        self.av_optimizers = ["sgd", "momentum", "adam"]
-        self.av_metrics = ["mse", "accuracy", "cse"]
-        self.av_loss = ["mse", "cse"]
+        self.av_optimizers = ['adam']
+        self.av_metrics = ['mse', 'accuracy', 'cse']
+        self.av_loss = ['mse', 'cse']
         self.iscompiled = False
         self.model_dict = None
         self.out = []
@@ -132,12 +132,12 @@ class CNN:
                 train_out = self.predict(X_train[curr_ind])
                 train_loss, train_error = self.apply_loss(
                     y_train[curr_ind], train_out)
-                val_out = self.predict(val_x)
-                val_loss, val_error = self.apply_loss(val_y, val_out)
+                val_out = self.predict(X_val)
+                val_loss, val_error = self.apply_loss(y_val, val_out)
                 if out_activation == "softmax":
                     train_acc = train_out.argmax(
                         axis=1) == y_train[curr_ind].argmax(axis=1)
-                    val_acc = val_out.argmax(axis=1) == val_y.argmax(axis=1)
+                    val_acc = val_out.argmax(axis=1) == y_val.argmax(axis=1)
                 elif out_activation == None:
                     train_acc = abs(y_train[curr_ind]-train_out) < 0.000001
                     val_acc = abs(y_train[val_ex]-val_out) < 0.000001
@@ -168,7 +168,7 @@ class CNN:
             raise ValueError(
                 f"'{op_layer.name}' expects input of {op_layer.neurons} while {y_train.shape[-1]} is given.")
 
-    def compile_model(self, lr=0.01, mr=0.001, opt="sgd", loss="mse", metrics=['mse']):
+    def compile_model(self, lr=0.01, mr=0.001, opt='adam', loss="mse", metrics=['mse']):
         if opt not in self.av_optimizers:
             raise ValueError(
                 f"Optimizer is not understood, use one of {self.av_optimizers}.")
@@ -189,7 +189,7 @@ class CNN:
             layers=self.layers, name=opt, learning_rate=lr, mr=mr)
         self.optimizer = self.optimizer.opt_dict[opt]
 
-    def feedforward(self, x, train=True):
+    def forward_propagation(self, x, train=True):
         if train:
             for l in self.layers:
                 l.input = x
@@ -231,19 +231,19 @@ class CNN:
                                (1 - y) * np.nan_to_num(np.log(1 - out))))
             return loss, cse
 
-    def backpropagate(self, loss, update):
+    def backward_propagation(self, loss, update):
         for i in reversed(range(len(self.layers))):
             layer = self.layers[i]
             if layer == self.layers[-1]:
-                if (type(layer).__name__ == "FFL"):
+                if (type(layer).__name__ == "Dense"):
                     layer.error = loss
                     layer.delta = layer.error * layer.activation_dfn(layer.out)
                     layer.delta_weights += layer.delta * \
                         np.atleast_2d(layer.input).T
                     layer.delta_biases += layer.delta
             else:
-                nx_layer = self.layers[i+1]
-                layer.backpropagate(nx_layer)
+                next_layer = self.layers[i+1]
+                layer.backward_propagation(next_layer)
             if update:
                 layer.delta_weights /= self.batch_size
                 layer.delta_biases /= self.batch_size
@@ -263,7 +263,7 @@ class CNN:
         out = []
         if X.shape != self.layers[0].input_shape:
             for x in X:
-                out.append(self.feedforward(x, train=False))
+                out.append(self.forward_propagation(x, train=False))
         else:
-            out.append(self.feedforward(X, train=False))
+            out.append(self.forward_propagation(X, train=False))
         return np.array(out)

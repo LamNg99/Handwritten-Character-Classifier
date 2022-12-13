@@ -6,10 +6,8 @@ class Optimizer:
         self.name = name
         self.learning_rate = learning_rate
         self.mr = mr
-        keys = ["sgd", "iterative", "momentum", "rmsprop",
-                "adagrad", "adam", "adamax", "adadelta"]
-        values = [self.sgd, self.iterative, self.momentum, self.rmsprop,
-                  self.adagrad, self.adam, self.adamax, self.adadelta]
+        keys = ['adam']
+        values = [self.adam]
         self.opt_dict = {keys[i]: values[i] for i in range(len(keys))}
         if name != None and name in keys:
             self.opt_dict[name](layers=layers, training=False)

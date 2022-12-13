@@ -3,12 +3,12 @@ from functions import *
 
 
 class Conv2D:
-    def __init__(self, input_shape=None, filters=1, kernel_size=(3, 3), isbias=True, activation=None, stride=(1, 1), padding=None, bias=None):
+    def __init__(self, input_shape=None, filters=1, kernel_size=(3, 3), isbias=True, activation=None, strides=(1, 1), padding=None, bias=None):
         self.input_shape = input_shape
         self.filters = filters
         self.isbias = isbias
         self.activation = activation
-        self.stride = stride
+        self.strides = strides
         self.padding = padding
         self.bias = bias
         self.kernel_size = kernel_size
@@ -20,10 +20,10 @@ class Conv2D:
         if input_shape != None:
             self.kernel_size = (
                 kernel_size[0], kernel_size[1], input_shape[2], filters)
-            self.output_shape = ((int((input_shape[0] - kernel_size[0] + 2 * self.p) / stride[0]) + 1,
-                                  int((input_shape[1] - kernel_size[1] + 2 * self.p) / stride[1]) + 1, filters))
+            self.output_shape = ((int((input_shape[0] - kernel_size[0] + 2 * self.p) / strides[0]) + 1,
+                                  int((input_shape[1] - kernel_size[1] + 2 * self.p) / strides[1]) + 1, filters))
             self.set_variables()
-            self.out = np.zeros(self.output_shape)
+            self.out = np.zeros(self.output_shape)pip
         else:
             self.kernel_size = (kernel_size[0], kernel_size[1])
 
@@ -38,8 +38,8 @@ class Conv2D:
         self.delta_biases = np.zeros(self.biases.shape)
 
     def set_output_shape(self):
-        self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.stride[0] + 1),
-                             int((self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.stride[1] + 1), self.filters)
+        self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.strides[0] + 1),
+                             int((self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.strides[1] + 1), self.filters)
 
     def forward_propagation(self, image):
         self.input = image                      # keep track of last input for backpropagation
@@ -48,10 +48,10 @@ class Conv2D:
         # Check kernel size and stride values
         if kshape[0] % 2 != 1 or kshape[1] % 2 != 1:
             raise ValueError('Please provide odd length of 2D kernel.')
-        if type(self.stride) == int:
-            stride = (stride, stride)
+        if type(self.strides) == int:
+            strides = (strides, strides)
         else:
-            stride = self.stride
+            strides = self.strides
 
         # Zero padding
         if self.padding == None:
@@ -71,18 +71,18 @@ class Conv2D:
         feature_maps = []
         for f in range(self.filters):
             rv = 0
-            for r in range(kshape[0], image.shape[0] + 1, stride[0]):
+            for r in range(kshape[0], image.shape[0] + 1, strides[0]):
                 cv = 0
-                for c in range(kshape[1], image.shape[1] + 1, stride[1]):
+                for c in range(kshape[1], image.shape[1] + 1, strides[1]):
                     convolved_region = image[rv:r, cv:c]
                     detection = (np.multiply(
                         detection, self.weights[:, :, :, f]))
                     result = detection.sum() + self.biases[f]
                     feature_maps.append(result)
-                    cv += stride[1]
-                rv += stride[0]
+                    cv += strides[1]
+                rv += strides[0]
             feature_maps = np.array(feature_maps).reshape(
-                int(rv/stride[0]), int(cv/stride[1]))
+                int(rv/strides[0]), int(cv/strides[1]))
             self.out[:, :, f] = feature_maps
         if self.activation == None:
             pass
@@ -100,30 +100,30 @@ class Conv2D:
         image = current_layer.input
         kshape = current_layer.kernel_size
         shape = current_layer.input_shape
-        stride = current_layer.stride
+        strides = current_layer.strides
 
         for f in range(current_layer.filters):
             rv = 0
             i = 0
-            for r in range(kshape[0], shape[0]+1, stride[0]):
+            for r in range(kshape[0], shape[0]+1, strides[0]):
                 cv = 0
                 j = 0
-                for c in range(kshape[1], shape[1]+1, stride[1]):
+                for c in range(kshape[1], shape[1]+1, strides[1]):
                     convolved_region = image[rv:r, cv:c]
                     current_layer.delta_weights[:, :, :,
                                                 f] += convolved_region * next_layer.delta[i, j, f]
                     current_layer.delta[rv:r, cv:c, :] += next_layer.delta[i,
                                                                            j, f] * current_layer.weights[:, :, :, f]
                     j += 1
-                    cv += stride[1]
-                rv += stride[0]
+                    cv += strides[1]
+                rv += strides[0]
                 i += 1
             current_layer.delta_biases[f] = np.sum(next_layer.delta[:, :, f])
         current_layer.delta = relu_backward(current_layer.delta)
 
 
 class MaxPooling2D:
-    def __init__(self, pool_size=(2, 2), stride=None, padding=None):
+    def __init__(self, pool_size=(2, 2), strides=None, padding=None):
         self.input_shape = None
         self.isbias = False
         self.activation = None
@@ -136,37 +136,39 @@ class MaxPooling2D:
         self.padding = padding
         self.p = 1 if padding == 'same' else 0
         self.pool_size = pool_size
-        if type(stride) == int:
-            stride = (stride, stride)
-        self.stride = stride
-        if self.stride == None:
-            self.stride = self.pool_size
+        self.strides = strides
+        if self.strides == None:
+            self.strides = self.pool_size
 
     def forward_propagation(self, image):
         self.input = image
-        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.stride[0] + 1),
+        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.strides[0] + 1),
                              int((
-                                 self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.stride[1] + 1),
+                                 self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.strides[1] + 1),
                              self.input_shape[2])
         self.out = np.zeros(self.output_shape)
         pshape = self.pool_size
-        if type(self.stride) == int:
-            stride = (stride, stride)
-        else:
-            stride = self.stride
+
+        if type(self.strides) == int:
+            strides = (strides, strides)
+
+        if self.strides == None:
+            self.strides = self.pool_size
+
+        strides = self.strides
 
         for f in range(image.shape[2]):
             pooled_feature_maps = []
             rv = 0
-            for r in range(pshape[0], image.shape[0]+1, stride[0]):
+            for r in range(pshape[0], image.shape[0]+1, strides[0]):
                 cv = 0
-                for c in range(pshape[1], image.shape[1]+1, stride[1]):
+                for c in range(pshape[1], image.shape[1]+1, strides[1]):
                     pooled_region = image[rv:r, cv:c, f]
                     pooled_region = np.max(pooled_region)
-                    cv += stride[1]
-                rv += stride[0]
+                    cv += strides[1]
+                rv += strides[0]
             pooled_feature_maps = np.array(pooled_feature_maps).reshape(
-                int(rv/stride[0]), int(cv/stride[1]))
+                int(rv/strides[0]), int(cv/strides[1]))
             self.out[:, :, f] = pooled_feature_maps
         return self.out
 
@@ -177,28 +179,28 @@ class MaxPooling2D:
         image = current_layer.input
         pshape = current_layer.pool_size
         shape = current_layer.input_shape
-        stride = current_layer.stride
+        strides = current_layer.strides
 
         for f in range(shape[2]):
             i = 0
             rv = 0
-            for r in range(pshape[0], shape[0]+1, stride[0]):
+            for r in range(pshape[0], shape[0]+1, strides[0]):
                 cv = 0
                 j = 0
-                for c in range(pshape[1], shape[1]+1, stride[1]):
+                for c in range(pshape[1], shape[1]+1, strides[1]):
                     pooled_region = image[rv:r, cv:c, f]
                     dout = next_layer.delta[i, j, f]
                     p = np.max(pooled_region)
                     index = np.argwhere(pooled_region == p)[0]
                     current_layer.delta[rv+index[0], cv+index[1], f] = dout
                     j += 1
-                    cv += stride[1]
-                rv += stride[0]
+                    cv += strides[1]
+                rv += strides[0]
                 i += 1
 
     def set_output_shape(self):
-        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.stride[0] + 1),
-                             int((self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.stride[1] + 1), self.input_shape[2])
+        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.strides[0] + 1),
+                             int((self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.strides[1] + 1), self.input_shape[2])
 
 
 class Flatten:

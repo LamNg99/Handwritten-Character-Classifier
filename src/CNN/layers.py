@@ -10,8 +10,12 @@ class Conv2D:
         self.activation = activation
         self.stride = stride
         self.padding = padding
-        self.p = 1 if padding == 'same' else 0
         self.bias = bias
+        self.kernel_size = kernel_size
+        self.p = int(kernel_size[0] / 2) if padding == 'same' else 0
+
+        self.parameters = (self.kernel_size[0] * self.kernel_size[1]
+                           * self.input_shape[2] + 1) * self.filters if self.input_shape else 1
 
         if input_shape != None:
             self.kernel_size = (
@@ -30,10 +34,12 @@ class Conv2D:
     def set_variables(self):
         self.weights = self.init_param(self.kernel_size)
         self.biases = self.init_param((self.filters, 1))
-        self.parameters = np.multiply.reduce(
-            self.kernel_size) + self.filters if self.isbias else 1
         self.delta_weights = np.zeros(self.kernel_size)
         self.delta_biases = np.zeros(self.biases.shape)
+
+    def set_output_shape(self):
+        self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.stride[0] + 1),
+                             int((self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.stride[1] + 1), self.filters)
 
     def forward_propagation(self, image):
         self.input = image                      # keep track of last input for backpropagation
@@ -117,9 +123,8 @@ class Conv2D:
 
 
 class MaxPooling2D:
-    def __init__(self, kernel_size=(2, 2), stride=None, padding=None):
+    def __init__(self, pool_size=(2, 2), stride=None, padding=None):
         self.input_shape = None
-        self.output_shape = None
         self.isbias = False
         self.activation = None
         self.parameters = 0
@@ -130,21 +135,21 @@ class MaxPooling2D:
         self.delta_biases = 0
         self.padding = padding
         self.p = 1 if padding == 'same' else 0
-        self.kernel_size = kernel_size
+        self.pool_size = pool_size
         if type(stride) == int:
             stride = (stride, stride)
         self.stride = stride
         if self.stride == None:
-            self.stride = self.kernel_size
-        self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.stride[0] + 1),
-                             int((
-                                 self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.stride[1] + 1),
-                             self.input_shape[2])
-        self.out = np.zeros(self.output_shape)
+            self.stride = self.pool_size
 
     def forward_propagation(self, image):
         self.input = image
-        kshape = self.kernel_size
+        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.stride[0] + 1),
+                             int((
+                                 self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.stride[1] + 1),
+                             self.input_shape[2])
+        self.out = np.zeros(self.output_shape)
+        pshape = self.pool_size
         if type(self.stride) == int:
             stride = (stride, stride)
         else:
@@ -153,9 +158,9 @@ class MaxPooling2D:
         for f in range(image.shape[2]):
             pooled_feature_maps = []
             rv = 0
-            for r in range(kshape[0], image.shape[0]+1, stride[0]):
+            for r in range(pshape[0], image.shape[0]+1, stride[0]):
                 cv = 0
-                for c in range(kshape[1], image.shape[1]+1, stride[1]):
+                for c in range(pshape[1], image.shape[1]+1, stride[1]):
                     pooled_region = image[rv:r, cv:c, f]
                     pooled_region = np.max(pooled_region)
                     cv += stride[1]
@@ -170,17 +175,17 @@ class MaxPooling2D:
         current_layer.delta = np.zeros(
             (current_layer.input_shape[0], current_layer.input_shape[1], current_layer.input_shape[2]))
         image = current_layer.input
-        kshape = current_layer.kernel_size
+        pshape = current_layer.pool_size
         shape = current_layer.input_shape
         stride = current_layer.stride
 
         for f in range(shape[2]):
             i = 0
             rv = 0
-            for r in range(kshape[0], shape[0]+1, stride[0]):
+            for r in range(pshape[0], shape[0]+1, stride[0]):
                 cv = 0
                 j = 0
-                for c in range(kshape[1], shape[1]+1, stride[1]):
+                for c in range(pshape[1], shape[1]+1, stride[1]):
                     pooled_region = image[rv:r, cv:c, f]
                     dout = next_layer.delta[i, j, f]
                     p = np.max(pooled_region)
@@ -191,11 +196,16 @@ class MaxPooling2D:
                 rv += stride[0]
                 i += 1
 
+    def set_output_shape(self):
+        self.output_shape = (int((self.input_shape[0] - self.pool_size[0] + 2 * self.p) / self.stride[0] + 1),
+                             int((self.input_shape[1] - self.pool_size[1] + 2 * self.p) / self.stride[1] + 1), self.input_shape[2])
+
 
 class Flatten:
     def __init__(self, input_shape=None):
         self.input_shape = None
         self.isbias = False
+        self.activation = None
         self.parameters = 0
         self.delta = 0
         self.weights = 0
@@ -203,11 +213,14 @@ class Flatten:
         self.delta_weights = 0
         self.delta_biases = 0
 
+    def set_output_shape(self):
         self.output_shape = (
             self.input_shape[0] * self.input_shape[1] * self.input_shape[2])
 
     def forward_propagation(self, image):
         self.input = image
+        self.output_shape = (
+            self.input_shape[0] * self.input_shape[1] * self.input_shape[2])
         self.out = np.array(image).flatten()
         return self.out
 
@@ -221,6 +234,7 @@ class Dropout:
     def __init__(self, prob=0.5):
         self.input_shape = None
         self.isbias = False
+        self.activation = None
         self.parameters = 0
         self.delta = 0
         self.weights = 0
@@ -228,6 +242,9 @@ class Dropout:
         self.prob = prob
         self.delta_weights = 0
         self.delta_biases = 0
+        self.output_shape = self.input_shape
+
+    def set_output_shape(self):
         self.output_shape = self.input_shape
 
     def forward_propagation(self, input, train=True):
@@ -251,7 +268,7 @@ class Dropout:
 
 class Dense:
     def __init__(self, units=1, input_shape=None, bias=None, weights=None, activation=None, isbias=True):
-        np.ramdom.seed(42)
+        np.random.seed(42)
         self.input_shape = input_shape
         self.units = units
         self.activation = activation
@@ -264,8 +281,7 @@ class Dense:
         if self.input_shape != None:
             self.weights = weights if weights != None else np.random.randn(
                 self.input_shape, units)
-            self.parameters = self.input_shape * \
-                self.units + self.units if self.isbias else 0
+
         if isbias:
             self.biases = bias if bias != None else np.random.randn(units)
         else:
@@ -275,6 +291,10 @@ class Dense:
         self.delta = None
         self.delta_weights = 0
         self.delta_biases = 0
+
+    def set_output_shape(self):
+        self.output_shape = self.units
+        self.get_parameters()
 
     def forward_propagation(self, input):
         self.input = input
@@ -304,3 +324,8 @@ class Dense:
                 f'Activation function is not recognised or available.')
         self.delta_weights += self.delta * np.atleast_2d(self.input).T
         self.delta_biases += self.delta
+
+    def get_parameters(self):
+        self.parameters = self.input_shape * \
+            self.units + self.units if self.isbias else 0
+        return self.parameters

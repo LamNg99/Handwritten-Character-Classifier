@@ -1,5 +1,3 @@
-from ast import Str
-from json import detect_encoding
 import numpy as np
 from functions import *
 

@@ -23,7 +23,7 @@ class Conv2D:
             self.output_shape = ((int((input_shape[0] - kernel_size[0] + 2 * self.p) / strides[0]) + 1,
                                   int((input_shape[1] - kernel_size[1] + 2 * self.p) / strides[1]) + 1, filters))
             self.set_variables()
-            self.out = np.zeros(self.output_shape)pip
+            self.out = np.zeros(self.output_shape)
         else:
             self.kernel_size = (kernel_size[0], kernel_size[1])
 
@@ -41,42 +41,49 @@ class Conv2D:
         self.output_shape = (int((self.input_shape[0] - self.kernel_size[0] + 2 * self.p) / self.strides[0] + 1),
                              int((self.input_shape[1] - self.kernel_size[1] + 2 * self.p) / self.strides[1] + 1), self.filters)
 
+    def zero_padding(self, image, size):
+        padded_image = np.pad(image, ((0, 0), (size, size), (size, size), (0, 0)),
+                              'constant', constant_values=(0, 0))
+        return padded_image
+
     def forward_propagation(self, image):
-        self.input = image                      # keep track of last input for backpropagation
-        kshape = self.kernel_size
-
-        # Check kernel size and stride values
-        if kshape[0] % 2 != 1 or kshape[1] % 2 != 1:
-            raise ValueError('Please provide odd length of 2D kernel.')
-        if type(self.strides) == int:
-            strides = (strides, strides)
-        else:
-            strides = self.strides
-
-        # Zero padding
-        if self.padding == None:
-            pass
-        elif self.padding == 'valid':
-            pass
-        elif self.padding == 'same':
-            h = np.zeros((image.shape[1], image.shape[2])
-                         ).reshape(-1, image.shape[1], image.shape[2])
-            v = np.zeros((image.shape[0] + 2, image.shape[2])
-                         ).reshape(image.shape[0] + 2, -1, image.shape[2])
-            padded_image = np.vstack(h, image, h)           # add rows
-            padded_image = np.vstack(v, padded_image, v)    # add columns
-            image = padded_image
-
-        # Convolve each filter over padded image
-        feature_maps = []
         for f in range(self.filters):
+            self.input = image                      # keep track of last input for backpropagation
+            kshape = self.kernel_size
+            shape = image.shape
+
+            # Check kernel size and stride values
+            if kshape[0] % 2 != 1 or kshape[1] % 2 != 1:
+                raise ValueError('Please provide odd length of 2D kernel.')
+            if type(self.strides) == int:
+                strides = (strides, strides)
+            else:
+                strides = self.strides
+
+            # Zero padding
+            if self.padding == None:
+                pass
+            elif self.padding == 'valid':
+                pass
+            elif self.padding == 'same':
+                #image = self.zero_padding(image=image, size=kshape[0]//2)
+
+                zeros_h = np.zeros((shape[1], shape[2])).reshape(-1, shape[1], shape[2])
+                zeros_v = np.zeros((shape[0]+2, shape[2])).reshape(shape[0]+2, -1, shape[2])
+                padded_img = np.vstack((zeros_h, image, zeros_h)) # add rows
+                padded_img = np.hstack((zeros_v, padded_img, zeros_v)) # add cols
+                image = padded_img
+                shape = image.shape
+
+            # Convolve each filter over padded image
+            feature_maps = []
+        
             rv = 0
             for r in range(kshape[0], image.shape[0] + 1, strides[0]):
                 cv = 0
                 for c in range(kshape[1], image.shape[1] + 1, strides[1]):
                     convolved_region = image[rv:r, cv:c]
-                    detection = (np.multiply(
-                        detection, self.weights[:, :, :, f]))
+                    detection = np.multiply(convolved_region, self.weights[:, :, :, f])
                     result = detection.sum() + self.biases[f]
                     feature_maps.append(result)
                     cv += strides[1]
@@ -289,6 +296,7 @@ class Dense:
         else:
             self.biases = 0
 
+        self.out = None
         self.error = None
         self.delta = None
         self.delta_weights = 0

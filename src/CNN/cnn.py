@@ -1,4 +1,5 @@
 from layers import *
+from functions import *
 from optimizers import *
 import numpy as np
 import pandas as pd
@@ -78,9 +79,7 @@ class CNN:
         print(model_df)
         print(f"Total Parameters: {sum(param)}")
 
-    def train(self, X_train, y_train, epochs, batch_size=32, shuffle=True, validation_split=0.2, validation_data=None):
-        X_val = validation_data[0]
-        y_val = validation_data[1]
+    def train(self, X_train, y_train, epochs, batch_size=32, shuffle=True, validation_split=0.2, X_val=None, y_val=None):
 
         show_every = 1
 
@@ -118,7 +117,7 @@ class CNN:
                 b = 0
                 batch_loss = 0
                 for x, y in zip(curr_x, curr_y):
-                    out = self.feedforward(x)
+                    out = self.forward_propagation(x)
                     loss, error = self.apply_loss(y, out)
                     batch_loss += loss
                     err.append(error)
@@ -126,7 +125,7 @@ class CNN:
                     if b == batch_size-1:
                         update = True
                         loss = batch_loss/batch_size
-                    self.backpropagate(loss, update)
+                    self.back_propagation(loss, update)
                     b += 1
             if e % show_every == 0:
                 train_out = self.predict(X_train[curr_ind])
@@ -193,16 +192,16 @@ class CNN:
         if train:
             for l in self.layers:
                 l.input = x
-                x = np.nan_to_num(l.apply_activation(x))
+                x = l.forward_propagation(x)
                 l.out = x
             return x
         else:
             for l in self.layers:
                 l.input = x
                 if type(l).__name__ == "Dropout":
-                    x = np.nan_to_num(l.apply_activation(x, train=train))
+                    x = np.nan_to_num(l.forward_propagation(x, train=train))
                 else:
-                    x = np.nan_to_num(l.apply_activation(x))
+                    x = np.nan_to_num(l.forward_propagation(x))
                 l.out = x
             return x
 
@@ -221,7 +220,7 @@ class CNN:
                     """if o/p layer's fxn is softmax then loss is y - out
                     check the derivation of softmax and cross-entropy with derivative"""
                     loss = y - out
-                    loss = loss / self.layers[-1].activation_dfn(out)
+                    loss = loss / self.layers[-1].softmax_backward(out)
                 else:
                     y = np.float64(y)
                     out += self.eps
@@ -237,7 +236,12 @@ class CNN:
             if layer == self.layers[-1]:
                 if (type(layer).__name__ == "Dense"):
                     layer.error = loss
-                    layer.delta = layer.error * layer.activation_dfn(layer.out)
+                    if self.layers[-1].activation == "softmax":
+                        layer.delta = layer.error * \
+                            layer.softmax_backward(layer.out)
+                    elif self.layers[-1].activation == "relu":
+                        layer.delta = layer.error * \
+                            layer.relu_backward(layer.out)
                     layer.delta_weights += layer.delta * \
                         np.atleast_2d(layer.input).T
                     layer.delta_biases += layer.delta
